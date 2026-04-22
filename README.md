@@ -13,6 +13,28 @@ Aplicación móvil de gestión de tareas construida con React Native (Expo bare 
 - Android Studio con SDK 34 configurado
 - Un dispositivo Android físico o emulador con API 26+
 
+# Generar el keystore 
+keytool -genkeypair -v -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+
+# Generar el keystore nuevamente
+cd android
+.\gradlew clean
+.\gradlew assembleRelease
+
+## Generar APK
+cd android
+.\gradlew assembleRelease
+
+## Instalar APK directo en celular
+cd android
+.\gradlew installRelease
+
+## Verificar keystore (firma)
+keytool -list -v -keystore my-release-key.keystore -storepass 123456
+
+## Cambiar icono
+Get-ChildItem -Path "android\app\src\main\res" -Recurse -Filter "ic_launcher*.png" | ForEach-Object { Copy-Item -Path "src\assets\iconoT.png" -Destination $_.FullName -Force }
+
 ### 1. Instalar dependencias
 
 ```bash
