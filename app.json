@@ -1,4 +1,33 @@
 {
-  "name": "TaskDashboard",
-  "displayName": "TaskDashboard"
+  "expo": {
+    "name": "TaskManagerApp",
+    "slug": "task-manager-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "taskmanagerapp",
+    "userInterfaceStyle": "dark",
+    "icon": "./src/assets/iconoT.png",
+    "splash": {
+      "backgroundColor": "#0F0F1A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.taskmanagerapp",
+      "icon":"./src/assets/iconoT.png",
+      "infoPlist": {
+        "NSCameraUsageDescription": "This app uses the camera to attach photos to tasks.",
+        "NSPhotoLibraryUsageDescription": "This app may save photos to your library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./src/assets/iconoT.png",
+        "backgroundColor": "#0F0F1A"
+      },
+      "package": "com.taskmanagerapp",
+      "permissions": ["CAMERA", "WRITE_EXTERNAL_STORAGE", "READ_EXTERNAL_STORAGE"]
+    },
+    "plugins": []
+  }
 }

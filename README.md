@@ -1,97 +1,190 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# 📱 Task Manager App — Dashboard de Tareas Colaborativas
 
-# Getting Started
+Aplicación móvil de gestión de tareas construida con React Native (Expo bare workflow), TypeScript, WatermelonDB y módulos nativos en Kotlin.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## 🚀 Instalación y ejecución
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+### Requisitos previos
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+- Node.js 18+
+- JDK 17
+- Android Studio con SDK 34 configurado
+- Un dispositivo Android físico o emulador con API 26+
 
-```sh
-# Using npm
-npm start
+### 1. Instalar dependencias
 
-# OR using Yarn
-yarn start
+```bash
+npm install
 ```
 
-## Step 2: Build and run your app
+### 2. Ejecutar en Android
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+```bash
+npx expo run:android
 ```
 
-### iOS
+> ⚠️ No uses `npx expo start` + Expo Go. La app usa módulos nativos (`CameraModule`, `AvatarView`) que solo funcionan con un build nativo completo.
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
+### 3. Configuración nativa (ya incluida en el repo)
 
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+Los siguientes archivos ya están configurados en `android/`:
 
-```sh
-bundle install
+- `AndroidManifest.xml` — permisos de cámara, almacenamiento y `FileProvider`
+- `MainApplication.kt` — registra `CameraPackage` y `AvatarViewPackage`
+- `MainActivity.kt` — conecta `onActivityResult` al `CameraModule`
+- `res/xml/file_provider_paths.xml` — rutas del `FileProvider`
+
+No se requiere ningún paso adicional de configuración nativa.
+
+---
+
+## 🏗️ Arquitectura Offline-First
+
+### Principio general
+
+La app sigue un patrón **offline-first estricto**: la UI nunca lee datos directamente de la API. Todo pasa por WatermelonDB como fuente de verdad local.
+
+```
+API (dummyjson.com)
+       ↓
+  syncService.ts   ← única capa que habla con la API
+       ↓
+  WatermelonDB     ← fuente de verdad local
+       ↓
+  withObservables  ← observa cambios reactivamente
+       ↓
+  DashboardScreen  ← renderiza desde la BD local
 ```
 
-Then, and every time you update your native dependencies, run:
+### Flujo de datos
 
-```sh
-bundle exec pod install
+1. **Primera apertura**: `syncTodos()` consume `https://dummyjson.com/todos`, guarda todas las tareas en WatermelonDB y nunca vuelve a leer de la API salvo en sincronizaciones explícitas.
+2. **Lectura**: `DashboardScreen` usa `withObservables` + `withDatabase` de WatermelonDB. Los datos se leen exclusivamente desde la BD local mediante queries reactivas.
+3. **Modificaciones offline**: marcar una tarea como completada llama a `task.update()` directamente sobre WatermelonDB. Sin conexión, el cambio persiste localmente.
+4. **Pull-to-Refresh**: al jalar la lista, se vuelve a llamar `syncTodos()`, que hace upsert de cada tarea (crea si no existe, actualiza si existe por `remote_id`).
+
+### Por qué WatermelonDB
+
+- Diseñado específicamente para offline-first en React Native
+- Queries reactivas via RxJS (`observe()`) — la UI se actualiza automáticamente al cambiar la BD
+- Alto rendimiento con listas grandes (lazy loading nativo)
+- API de escritura transaccional (`database.write()`) que garantiza consistencia
+
+---
+
+## 📁 Estructura de carpetas
+
+```
+src/
+├── data/
+│   ├── local/         # WatermelonDB: schema, modelos, database.ts
+│   ├── remote/        # fetchTodos.ts — único punto de contacto con la API
+│   └── sync/          # syncService.ts — lógica de sincronización y utilidades puras
+├── domain/
+│   └── entities.ts    # Tipos e interfaces TypeScript (sin dependencias de framework)
+├── modules/
+│   ├── AvatarView/    # Wrapper JS del componente nativo AvatarView
+│   └── CameraModule/  # Wrapper JS del módulo nativo de cámara
+├── navigation/        # React Navigation — AppNavigator
+├── store/             # Zustand — estado UI (filtro activo, estado de sync)
+└── ui/
+    ├── components/    # AvatarView.tsx, FilterBar.tsx, TaskItem.tsx
+    └── screens/       # DashboardScreen.tsx
+
+android/app/src/main/java/com/taskmanagerapp/
+├── avatarview/        # AvatarNativeView.kt, AvatarViewManager.kt, AvatarViewPackage.kt
+└── camera/            # CameraModule.kt, CameraPackage.kt
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+---
 
-```sh
-# Using npm
-npm run ios
+## ⭐ Componente de UI Nativo: AvatarView
 
-# OR using Yarn
-yarn ios
+`AvatarView` es un componente nativo en Kotlin (`AvatarNativeView.kt`) expuesto a React Native vía `AvatarViewManager`.
+
+**Funcionalidad:**
+- Recibe la prop `name` desde JS (ej. `name="Carlos Rivera"`)
+- Extrae las iniciales: `"CR"`
+- Genera un color de fondo único y determinístico aplicando un hash sobre el nombre → conversión a HSV
+- Renderiza un `View` circular nativo en Canvas con las iniciales centradas en blanco
+
+**Uso en JS:**
+```tsx
+<AvatarView name="Carlos Rivera" size={44} />
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+El wrapper `AvatarView.tsx` detecta si el módulo nativo está disponible vía `UIManager.getViewManagerConfig`. Si no lo está (Expo Go, web, tests), usa un fallback puro en React Native con la misma lógica de color e iniciales replicada en TypeScript.
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+---
 
-## Step 3: Modify your app
+## 📷 Módulo Nativo: CameraModule
 
-Now that you have successfully run the app, let's make changes!
+Módulo nativo Android (Kotlin) que expone `openCamera()` a JavaScript.
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+**Flujo:**
+1. Solicita permiso `CAMERA` en runtime
+2. Crea un archivo temporal en `getExternalFilesDir(Pictures)`
+3. Lanza `ACTION_IMAGE_CAPTURE` con `FileProvider`
+4. En `onActivityResult` (conectado desde `MainActivity`), resuelve la Promise con `{ uri, fileName, size }`
+5. La cancelación resuelve con rechazo `E_CANCELLED` — sin crash
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+**Uso en JS:**
+```ts
+const result = await CameraModule.openCamera();
+// result.uri → "file:///data/.../JPEG_20260411_175200_.jpg"
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+---
+## Generar la Firma
 
-## Congratulations! :tada:
+keytool -genkeypair -v -storetype PKCS12 -keystore my-release-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000 
 
-You've successfully run and modified your React Native App. :partying_face:
 
-### Now what?
+## 🧪 Pruebas unitarias
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+Las pruebas cubren la lógica de negocio crítica:
 
-# Troubleshooting
+```
+src/__tests__/
+├── avatarUtils.test.ts     # extractInitials, nameToColor
+├── filterTasks.test.ts     # lógica de filtros ALL/COMPLETED/PENDING
+├── syncService.test.ts     # sincronización, upsert, manejo de errores
+└── taskStore.test.ts       # estado Zustand: setFilter, setSyncing, setSyncError
+```
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+Ejecutar:
+```bash
+npm test
+```
 
-# Learn More
+---
 
-To learn more about React Native, take a look at the following resources:
+## 🤖 Uso de IA
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+Durante el desarrollo se utilizó **Claude (Anthropic)** como asistente principal. A continuación se documenta el uso honesto y detallado:
+
+### Tareas donde la IA fue clave
+
+| Tarea | Herramienta | Cómo se usó |
+|---|---|---|
+| Arquitectura inicial del proyecto | Claude | Se le describió el stack (WatermelonDB + Zustand + RN) y generó la estructura de carpetas base y los modelos |
+| `CameraModule.kt` | Claude | Generación del módulo nativo completo, incluyendo FileProvider, permisos runtime y manejo de `onActivityResult` |
+| `AvatarNativeView.kt` | Claude | Generación del Canvas nativo con lógica de hash de color e iniciales |
+| `syncService.ts` | Claude | Lógica de upsert offline-first, manejo de errores por ítem |
+| Depuración de crashes | Claude | Análisis de logcat — identificó que faltaba `@ReactModule` en `CameraModule` y el `FileProvider` en el manifiesto |
+| README | Claude | Redacción completa basada en el código real del proyecto |
+
+### Supervisión humana aplicada
+
+La IA no operó de forma autónoma. En cada caso se revisó y validó el output:
+
+- Los archivos Kotlin generados se revisaron línea a línea antes de incluirlos
+- Los crashes se diagnosticaron compartiendo el logcat real con la IA — sin el log, el error (`@ReactModule` faltante) no hubiera sido identificable solo con el código
+- La arquitectura offline-first fue una decisión propia; la IA implementó el patrón pero no lo eligió
+- Las pruebas unitarias fueron revisadas para asegurar que cubrían casos edge reales (nombre vacío, userId inválido, fallo de red en sync)
+
+### Limitación encontrada
+
+El prebuild de Expo sobreescribe `MainActivity.kt` eliminando customizaciones manuales. Este problema fue identificado y resuelto iterativamente con ayuda de la IA al analizar el error de runtime.
