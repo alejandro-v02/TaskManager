@@ -6,13 +6,7 @@ import { database } from './src/data/local/database';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { StyleSheet } from 'react-native';
 
-/**
- * Root component.
- * Wraps the whole app with:
- * 1. GestureHandlerRootView — required by React Navigation
- * 2. SafeAreaProvider — for safe area insets
- * 3. DatabaseProvider — makes WatermelonDB available to all screens via withDatabase()
- */
+
 export default function App(): React.JSX.Element {
   return (
     <GestureHandlerRootView style={styles.root}>
